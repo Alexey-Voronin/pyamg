@@ -44,6 +44,11 @@ instantiate:
     - classical_strength_of_connection_min
 
 - types:
+    - [int,double]
+  functions:
+    - ilu_bsr_fact
+
+- types:
     - [int,float,"std::complex<float>"]
     - [int,double,"std::complex<double>"]
   functions:
@@ -83,6 +88,14 @@ instantiate:
     - rs_cf_splitting
     - cljp_naive_splitting
     - rs_direct_interpolation_pass1
+    - ilu_get_idx1_size
+    - ilu_get_idx2_size
+    - ilu_get_vals_size
+
+- types:
+    - [double]
+  functions:
+    - ilu_get_vals
 
 - types:
     - [int, float]

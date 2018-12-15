@@ -611,6 +611,21 @@ def setup_gauss_seidel_nr(lvl, iterations=DEFAULT_NITER, sweep=DEFAULT_SWEEP,
                                    sweep=sweep, omega=omega)
     return smoother
 
+def setup_vanka(lvl, iterations=DEFAULT_NITER, sweep=DEFAULT_SWEEP,
+                          omega=1.0):
+    matrix_asformat(lvl, 'A', 'csc')
+
+    def smoother(A, x, b):
+        relaxation.vanka(lvl.Acsc, x, b, iterations=iterations,
+                                   sweep=sweep, omega=omega)
+    return smoother
+
+def setup_ILU(lvl, iterations=DEFAULT_NITER, drop_tol=1e-4):
+    matrix_asformat(lvl, 'A', 'csc')
+
+    def smoother(A, x, b):
+        relaxation.ILU(lvl.Acsc, x, b, iterations=iterations, drop_tol=drop_tol)
+    return smoother
 
 def setup_gmres(lvl, tol=1e-12, maxiter=1, restrt=None, M=None, callback=None,
                 residuals=None):

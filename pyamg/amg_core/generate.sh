@@ -5,3 +5,8 @@
 ./bindthem.py relaxation.h
 ./bindthem.py ruge_stuben.h
 ./bindthem.py smoothed_aggregation.h
+./bindthem.py test_ilu.h
+#./bindthem.py Num2.h
+./bindthem.py vector.h
+./bindthem.py matrix.h
+./bindthem.py ilu.h

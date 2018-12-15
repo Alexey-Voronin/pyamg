@@ -226,7 +226,11 @@ amg_core_headers = ['evolution_strength.h',
                     'linalg.h',
                     'relaxation.h',
                     'ruge_stuben.h',
-                    'smoothed_aggregation.h']
+                    'smoothed_aggregation.h',
+                    'test_ilu.h',
+#                    'matrix.h',
+#                    'vector.h'
+                    ]
 amg_core_headers = [f.replace('.h', '') for f in amg_core_headers]
 
 ext_modules = [Extension('pyamg.amg_core.%s' % f,
@@ -238,6 +242,12 @@ ext_modules += [Extension('pyamg.amg_core.tests.bind_examples',
                           sources=['pyamg/amg_core/tests/bind_examples_bind.cpp'],
                           include_dirs=[get_pybind_include(), get_pybind_include(user=True)],
                           language='c++')]
+
+#ext_modules += [Extension('pyamg.amg_core.ILU.%s' % f,
+#                          sources=['pyamg/amg_core/ILU/%s.cpp' % f],
+#                          include_dirs=[get_pybind_include(), get_pybind_include(user=True)],
+#                          language='c++') for f in ['Num', 'vector', 'matrix']]
+
 
 setup(
     name='pyamg',

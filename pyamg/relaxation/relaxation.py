@@ -12,8 +12,8 @@ from pyamg import amg_core
 from scipy.linalg import lapack as la
 
 __all__ = ['sor', 'gauss_seidel', 'jacobi', 'polynomial',
-           'schwarz', 'schwarz_parameters',
-           'jacobi_ne', 'gauss_seidel_ne', 'gauss_seidel_nr',
+           'schwarz', 'schwarz_parameters', 'ILU',
+           'jacobi_ne', 'gauss_seidel_ne', 'gauss_seidel_nr', 'vanka',
            'gauss_seidel_indexed', 'block_jacobi', 'block_gauss_seidel']
 
 
@@ -913,6 +913,24 @@ def gauss_seidel_ne(A, x, b, iterations=1, sweep='forward', omega=1.0,
         amg_core.gauss_seidel_ne(A.indptr, A.indices, A.data,
                                  x, b, row_start,
                                  row_stop, row_step, Dinv, omega)
+"""
+def vanka(A, x, b, iterations=1, sweep='forward', omega=1.0,
+                    Dinv=None):
+    A, x, b = make_system(A, x, b, formats=['csc'])
+    for i in range(0, iterations):
+        block_gauss_seidel(A, x, b, iterations=iterations, sweep,  blocksize=1)
+#        gauss_seidel(A, x, b, iterations=iterations)
+"""
+
+def ILU(A, x, b, iterations=1, drop_tol=1e-4):
+    A, x, b = make_system(A, x, b, formats=['csc'])
+    from pyamg.util.linalg import norm
+    print('norm before ilu relax=%f' % norm(b-A*x))
+    s = sp.sparse.linalg.spilu(A,  drop_tol)
+    for i in range(iterations):
+        x = x + s.solve(b-A*x)
+
+    print('norm after ilu relax=%f' % norm(b-A*x))
 
 
 def gauss_seidel_nr(A, x, b, iterations=1, sweep='forward', omega=1.0,
@@ -974,7 +992,6 @@ def gauss_seidel_nr(A, x, b, iterations=1, sweep='forward', omega=1.0,
 
     """
     A, x, b = make_system(A, x, b, formats=['csc'])
-
     # Dinv for A.H*A
     if Dinv is None:
         Dinv = np.ravel(get_diagonal(A, norm_eq=1, inv=True))

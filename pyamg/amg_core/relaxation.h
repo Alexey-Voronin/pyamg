@@ -622,6 +622,43 @@ void gauss_seidel_nr(const I Ap[], const int Ap_size,
 
 }
 
+template<class I, class T, class F>
+void vanka(const I Ap[], const int Ap_size,
+                     const I Aj[], const int Aj_size,
+                     const T Ax[], const int Ax_size,
+                           T  x[], const int  x_size,
+                           T  z[], const int  z_size,
+                     const I col_start,
+                     const I col_stop,
+                     const I col_step,
+                     const T Tx[], const int Tx_size,
+                     const F omega)
+{
+    //rename
+    const T * D_inv = Tx;
+    T * r = z;
+
+    for(I i = col_start; i != col_stop; i+=col_step)
+    {
+        I start = Ap[i];
+        I end   = Ap[i+1];
+
+        // delta = < A e_i, r >
+        T delta = 0.0;
+        for(I j = start; j < end; j++)
+        {   delta += conjugate(Ax[j])*r[Aj[j]]; }
+
+        // delta /=  omega*(A.H A)_{ii}
+        delta *= (D_inv[i]*omega);
+
+        // update entry in x forcing < A.H b - A.H A x, e_i > = 0
+        x[i] += delta;
+
+        // r -= delta A e_i
+        for(I j = start; j < end; j++)
+        {   r[Aj[j]] -= delta*Ax[j]; }
+    }
+}
 /*
  *  Perform one iteration of block Jacobi relaxation on the linear
  *  system Ax = b, where A is stored in BSR format and x and b
