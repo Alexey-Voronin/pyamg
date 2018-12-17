@@ -7,6 +7,10 @@
 #include <vector>
 #include <math.h>
 
+#include</usr/local/Cellar/eigen/3.3.5/include/eigen3/Eigen/Core>
+#include</usr/local/Cellar/eigen/3.3.5/include/eigen3/Eigen/SVD>
+
+
 using namespace raptor;
 
 
@@ -790,9 +794,20 @@ std::vector<double> BSRMatrix::fill_factors(BSRMatrix* levls){
     return factors_data;
 }
 
+ template<typename _Matrix_Type_>
+ _Matrix_Type_ pseudoInverse(const _Matrix_Type_ &a, double epsilon = std::numeric_limits<double>::epsilon())
+ {
+     Eigen::JacobiSVD< _Matrix_Type_ > svd(a ,Eigen::ComputeThinU | Eigen::ComputeThinV);
+     double tolerance = epsilon * std::max(a.cols(), a.rows()) *svd.singularValues().array().abs()(0);
+     return svd.matrixV() *  (svd.singularValues().array().abs() > tolerance).select(svd.singularValues().array().inverse(), 0).matrix(). asDiagonal() * svd.matrixU().adjoint();
+ }
+
 std::vector<double> BSRMatrix::inv_diag_block(std::vector<double> diag_vec, int k){
     printf("@vector<double> BSRMatrix::inv_diag_block(std::vector<double> diag_vec, int k)\n");
 	//Compute inverse of diagonal block A[k,k]
+
+    printf("len(diag_vec)=%d\tk=%d\tb_dim(%d,%d)\tb_size=%d\n", 
+            diag_vec.size(), k, b_rows, b_cols,b_size);
 
 	//extract diagonal block
 	std::vector<double> diag_b(b_size);
@@ -805,6 +820,47 @@ std::vector<double> BSRMatrix::inv_diag_block(std::vector<double> diag_vec, int 
 	//Find inverse of diagonal block
 	std::vector<double> inv_diag_b(b_size);
 	std::fill(inv_diag_b.begin(), inv_diag_b.end(), 0.0);
+
+
+    // Pseudo-inverse (Moorse-Penrose) using Eigen
+     Eigen::MatrixXd A(b_rows,b_cols);
+     printf("A:\n");
+     for (int i = 0; i < b_rows; i++)
+     {
+         for (int j = 0; j < b_cols; j++)
+         {
+             A(i,j) = (diag_vec.data())[i*k+j];
+             printf("%.3f\t", A(i,j) );
+         }
+         printf("\n");
+     }
+     Eigen::MatrixXd Ainv = pseudoInverse(A);
+     std::vector<double> out (k*k);
+     printf("Ainv:\n");
+     for (int i = 0; i < b_rows; i++)
+     {    
+          for (int j = 0; j < b_cols; j++)
+          {
+              (inv_diag_b.data())[i*b_rows+j] = Ainv(i, j);
+              printf("%.3f\t", Ainv(i,j) );
+          }
+          printf("\n");
+     }
+     Eigen::MatrixXd I = A*Ainv;
+     printf("A*Ainv:\n");
+      for (int i = 0; i < b_rows; i++)
+      {
+           for (int j = 0; j < b_cols; j++)
+           {
+               printf("%.3f\t", I(i,j) );
+           }
+           printf("\n");
+      }
+/*
+//  A     = | a  b |
+//          | c  d |
+//  A_inv = | d  -b|
+//          |-c   a| * (1/(a*d-b*c))
 
 	if(b_rows == 2){
 		inv_det = 1.0/(diag_b[0]*diag_b[3]-diag_b[1]*diag_b[2]);
@@ -828,7 +884,7 @@ std::vector<double> BSRMatrix::inv_diag_block(std::vector<double> diag_vec, int 
 		inv_diag_b[7] = inv_det*(diag_b[1]*diag_b[6] - diag_b[0]*diag_b[7]);
 		inv_diag_b[8] = inv_det*(diag_b[0]*diag_b[4] - diag_b[1]*diag_b[3]);
 	}
-
+*/
 	return inv_diag_b;
 }
 

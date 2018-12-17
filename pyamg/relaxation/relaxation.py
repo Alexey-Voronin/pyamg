@@ -924,13 +924,9 @@ def vanka(A, x, b, iterations=1, sweep='forward', omega=1.0,
 
 def ILU(A, x, b, iterations=1, drop_tol=1e-4):
     A, x, b = make_system(A, x, b, formats=['csc'])
-    from pyamg.util.linalg import norm
-    print('norm before ilu relax=%f' % norm(b-A*x))
     s = sp.sparse.linalg.spilu(A,  drop_tol)
     for i in range(iterations):
-        x = x + s.solve(b-A*x)
-
-    print('norm after ilu relax=%f' % norm(b-A*x))
+        x[:] = x + s.solve(b-A*x)
 
 
 def gauss_seidel_nr(A, x, b, iterations=1, sweep='forward', omega=1.0,

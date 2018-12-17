@@ -502,6 +502,7 @@ class multilevel_solver:
             cycle = 'AMLI', AMLI-cycle
 
         """
+        from pyamg.util.linalg import residual_norm
         A = self.levels[lvl].A
 
         self.levels[lvl].presmoother(A, x, b)
