@@ -19,7 +19,7 @@ from .cr import CR
 __all__ = ['ruge_stuben_solver']
 
 
-def ruge_stuben_solver(A,
+def ruge_stuben_solver(A, Ps=None, Rs=None,
                        strength=('classical', {'theta': 0.25}),
                        CF='RS',
                        presmoother=('gauss_seidel', {'sweep': 'symmetric'}),
@@ -107,7 +107,12 @@ def ruge_stuben_solver(A,
     levels[-1].A = A
 
     while len(levels) < max_levels and levels[-1].A.shape[0] > max_coarse:
-        extend_hierarchy(levels, strength, CF, keep)
+        P = None
+        R = None
+        if (Ps != None and Rs != None) and (len(levels)-1 <= len(Ps)):
+            P = Ps[len(levels)-1]
+            R = Rs[len(levels)-1]
+        extend_hierarchy(levels, strength, CF, keep, P, R)
 
     ml = multilevel_solver(levels, **kwargs)
     change_smoothers(ml, presmoother, postsmoother)
@@ -115,7 +120,7 @@ def ruge_stuben_solver(A,
 
 
 # internal function
-def extend_hierarchy(levels, strength, CF, keep):
+def extend_hierarchy(levels, strength, CF, keep, P=None, R=None):
     """Extend the multigrid hierarchy."""
     def unpack_arg(v):
         if isinstance(v, tuple):
@@ -125,58 +130,62 @@ def extend_hierarchy(levels, strength, CF, keep):
 
     A = levels[-1].A
 
-    # Compute the strength-of-connection matrix C, where larger
-    # C[i,j] denote stronger couplings between i and j.
-    fn, kwargs = unpack_arg(strength)
-    if fn == 'symmetric':
-        C = symmetric_strength_of_connection(A, **kwargs)
-    elif fn == 'classical':
-        C = classical_strength_of_connection(A, **kwargs)
-    elif fn == 'distance':
-        C = distance_strength_of_connection(A, **kwargs)
-    elif (fn == 'ode') or (fn == 'evolution'):
-        C = evolution_strength_of_connection(A, **kwargs)
-    elif fn == 'energy_based':
-        C = energy_based_strength_of_connection(A, **kwargs)
-    elif fn == 'algebraic_distance':
-        C = algebraic_distance(A, **kwargs)
-    elif fn == 'affinity':
-        C = affinity_distance(A, **kwargs)
-    elif fn is None:
-        C = A
-    else:
-        raise ValueError('unrecognized strength of connection method: %s' %
-                         str(fn))
+    if (P == None and R == None):
+        # Compute the strength-of-connection matrix C, where larger
+        # C[i,j] denote stronger couplings between i and j.
+        fn, kwargs = unpack_arg(strength)
+        if fn == 'symmetric':
+            C = symmetric_strength_of_connection(A, **kwargs)
+        elif fn == 'classical':
+            C = classical_strength_of_connection(A, **kwargs)
+        elif fn == 'distance':
+            C = distance_strength_of_connection(A, **kwargs)
+        elif (fn == 'ode') or (fn == 'evolution'):
+            C = evolution_strength_of_connection(A, **kwargs)
+        elif fn == 'energy_based':
+            C = energy_based_strength_of_connection(A, **kwargs)
+        elif fn == 'algebraic_distance':
+            C = algebraic_distance(A, **kwargs)
+        elif fn == 'affinity':
+            C = affinity_distance(A, **kwargs)
+        elif fn is None:
+            C = A
+        else:
+            raise ValueError('unrecognized strength of connection method: %s' %
+                             str(fn))
 
-    # Generate the C/F splitting
-    fn, kwargs = unpack_arg(CF)
-    if fn == 'RS':
-        splitting = split.RS(C, **kwargs)
-    elif fn == 'PMIS':
-        splitting = split.PMIS(C, **kwargs)
-    elif fn == 'PMISc':
-        splitting = split.PMISc(C, **kwargs)
-    elif fn == 'CLJP':
-        splitting = split.CLJP(C, **kwargs)
-    elif fn == 'CLJPc':
-        splitting = split.CLJPc(C, **kwargs)
-    elif fn == 'CR':
-        splitting = CR(C, **kwargs)
-    else:
-        raise ValueError('unknown C/F splitting method (%s)' % CF)
+        # Generate the C/F splitting
+        fn, kwargs = unpack_arg(CF)
+        if fn == 'RS':
+            splitting = split.RS(C, **kwargs)
+        elif fn == 'PMIS':
+            splitting = split.PMIS(C, **kwargs)
+        elif fn == 'PMISc':
+            splitting = split.PMISc(C, **kwargs)
+        elif fn == 'CLJP':
+            splitting = split.CLJP(C, **kwargs)
+        elif fn == 'CLJPc':
+            splitting = split.CLJPc(C, **kwargs)
+        elif fn == 'CR':
+            splitting = CR(C, **kwargs)
+        else:
+            raise ValueError('unknown C/F splitting method (%s)' % CF)
 
-    # Generate the interpolation matrix that maps from the coarse-grid to the
-    # fine-grid
-    P = direct_interpolation(A, C, splitting)
+        # Generate the interpolation matrix that maps from the coarse-grid to the
+        # fine-grid
+        P = direct_interpolation(A, C, splitting)
 
-    # Generate the restriction matrix that maps from the fine-grid to the
-    # coarse-grid
-    R = P.T.tocsr()
+        # Generate the restriction matrix that maps from the fine-grid to the
+        # coarse-grid
+        R = P.T.tocsr()
 
-    # Store relevant information for this level
-    if keep:
-        levels[-1].C = C                  # strength of connection matrix
-        levels[-1].splitting = splitting  # C/F splitting
+        # Store relevant information for this level
+        if keep:
+            levels[-1].C = C                  # strength of connection matrix
+            levels[-1].splitting = splitting  # C/F splitting
+
+#    else:
+#        print("Using supplied Ps and Rs instead of coarsening!!")
 
     levels[-1].P = P                  # prolongation operator
     levels[-1].R = R                  # restriction operator
