@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 from warnings import warn
 import numpy as np
+import time
 from scipy.sparse import csr_matrix, isspmatrix_csr, isspmatrix_bsr,\
     SparseEfficiencyWarning
 
@@ -25,7 +26,8 @@ from .smooth import jacobi_prolongation_smoother,\
 __all__ = ['smoothed_aggregation_solver']
 
 
-def smoothed_aggregation_solver(A, B=None, BH=None,
+def smoothed_aggregation_solver(A, Ps = None, Rs=None, timing = None, countOp=None,
+                                B=None, BH=None,
                                 symmetry='hermitian', strength='symmetric',
                                 aggregate='standard',
                                 smooth=('jacobi', {'omega': 4.0/3.0}),
@@ -211,6 +213,11 @@ def smoothed_aggregation_solver(A, B=None, BH=None,
        http://citeseer.ist.psu.edu/vanek96algebraic.html
 
     """
+
+    if timing is not None:
+        start = time.time()
+
+
     if not (isspmatrix_csr(A) or isspmatrix_bsr(A)):
         try:
             A = csr_matrix(A)
@@ -281,10 +288,30 @@ def smoothed_aggregation_solver(A, B=None, BH=None,
     if A.symmetry == 'nonsymmetric':
         levels[-1].BH = BH    # left candidates
 
+
+    if timing is not None:
+        stop = time.time()
+        timing['RAP'] += stop-start
+        start = time.time()
+
+    if countOp is not None:
+        if (Ps == None and Rs == None):
+            countOp['Ps'] += 1
+        countOp['RAP'] += 1
+
+
     while len(levels) < max_levels and\
             int(levels[-1].A.shape[0]/blocksize(levels[-1].A)) > max_coarse:
+
+        P = None
+        R = None
+        if (Ps != None and Rs != None) and (len(levels)-1 <= len(Ps)):
+            P = Ps[len(levels)-1]
+            R = Rs[len(levels)-1]
+
         extend_hierarchy(levels, strength, aggregate, smooth,
-                         improve_candidates, diagonal_dominance, keep)
+                         improve_candidates, diagonal_dominance, keep,
+                         P, R, timing)
 
     ml = multilevel_solver(levels, **kwargs)
     change_smoothers(ml, presmoother, postsmoother)
@@ -292,7 +319,7 @@ def smoothed_aggregation_solver(A, B=None, BH=None,
 
 
 def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
-                     diagonal_dominance=False, keep=True):
+                     diagonal_dominance=False, keep=True, P=None, R=None, timing=None):
     """Extend the multigrid hierarchy.
 
     Service routine to implement the strength of connection, aggregation,
@@ -305,6 +332,9 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
             return v[0], v[1]
         else:
             return v, {}
+
+    if timing is not None:
+        start = time.time()
 
     A = levels[-1].A
     B = levels[-1].B
@@ -425,6 +455,13 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
     levels[-1].P = P  # smoothed prolongator
     levels[-1].R = R  # restriction operator
 
+
+    if timing is not None:
+        stop = time.time()
+        timing['Ps'] += stop-start
+        start = time.time()
+
+
     levels.append(multilevel_solver.level())
     A = R * A * P              # Galerkin operator
     A.symmetry = symmetry
@@ -433,3 +470,8 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
 
     if A.symmetry == "nonsymmetric":
         levels[-1].BH = BH     # left near nullspace candidates
+
+
+    if timing is not None:
+         stop = time.time()
+         timing['RAP'] += stop-start

@@ -15,11 +15,12 @@ from pyamg.strength import classical_strength_of_connection, \
 from .interpolate import direct_interpolation
 from . import split
 from .cr import CR
+import time
 
 __all__ = ['ruge_stuben_solver']
 
 
-def ruge_stuben_solver(A, Ps=None, Rs=None,
+def ruge_stuben_solver(A, Ps=None, Rs=None, timing = None, countOp=None,
                        strength=('classical', {'theta': 0.25}),
                        CF='RS',
                        presmoother=('gauss_seidel', {'sweep': 'symmetric'}),
@@ -106,13 +107,19 @@ def ruge_stuben_solver(A, Ps=None, Rs=None,
 
     levels[-1].A = A
 
+    if countOp is not None:
+        if (Ps == None and Rs == None):
+            countOp['Ps'] += 1
+        countOp['RAP'] += 1
+
     while len(levels) < max_levels and levels[-1].A.shape[0] > max_coarse:
         P = None
         R = None
         if (Ps != None and Rs != None) and (len(levels)-1 <= len(Ps)):
             P = Ps[len(levels)-1]
             R = Rs[len(levels)-1]
-        extend_hierarchy(levels, strength, CF, keep, P, R)
+
+        extend_hierarchy(levels, strength, CF, keep, P, R, timing)
 
     ml = multilevel_solver(levels, **kwargs)
     change_smoothers(ml, presmoother, postsmoother)
@@ -120,8 +127,12 @@ def ruge_stuben_solver(A, Ps=None, Rs=None,
 
 
 # internal function
-def extend_hierarchy(levels, strength, CF, keep, P=None, R=None):
+def extend_hierarchy(levels, strength, CF, keep, P=None, R=None, timing=None):
     """Extend the multigrid hierarchy."""
+
+    if timing is not None:
+        start = time.time()
+
     def unpack_arg(v):
         if isinstance(v, tuple):
             return v[0], v[1]
@@ -192,6 +203,16 @@ def extend_hierarchy(levels, strength, CF, keep, P=None, R=None):
 
     levels.append(multilevel_solver.level())
 
+    if timing is not None:
+        stop = time.time()
+        timing['Ps'] += stop-start
+        start = time.time()
+
     # Form next level through Galerkin product
     A = R * A * P
     levels[-1].A = A
+
+    if timing is not None:
+        stop = time.time()
+        timing['RAP'] += stop-start
+      #  print(timing)
