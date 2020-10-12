@@ -201,8 +201,15 @@ def gmres_mgs(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None, xtype=None,
     r = b - np.ravel(A*x)
 
     # Apply preconditioner
+
+    if callback is not None:
+        callback(r, 'unpreconditioned')
+        callback(M*r, 'preconditioned')
+        callback(M*r, 'pyamg')
+
     r = np.ravel(M*r)
     normr = norm(r)
+
     if keep_r:
         residuals.append(normr)
     # Check for nan, inf
@@ -322,7 +329,13 @@ def gmres_mgs(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None, xtype=None,
 
                 # Allow user access to the iterates
                 if callback is not None:
-                    callback(x)
+                    y_tmp      = sp.linalg.solve(H[0:inner+1, 0:inner+1].T, g[0:inner+1])
+                    update_tmp = np.ravel(np.mat(V[:inner+1, :]).T*y_tmp.reshape(-1, 1))
+                    x_tmp      = x + update_tmp
+                    rtmp       = b-A*x_tmp
+                    callback(rtmp, 'unpreconditioned')
+                    callback(M*rtmp, 'preconditioned')
+                    callback(M*rtmp, 'pyamg')
                 if keep_r:
                     residuals.append(normr)
 
@@ -334,9 +347,6 @@ def gmres_mgs(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None, xtype=None,
         x = x + update
         r = b - np.ravel(A*x)
 
-        # Apply preconditioner
-        r = np.ravel(M*r)
-        normr = norm(r)
         # Check for nan, inf
         # if isnan(r).any() or isinf(r).any():
         #    warn('inf or nan after application of preconditioner')
@@ -344,7 +354,13 @@ def gmres_mgs(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None, xtype=None,
 
         # Allow user access to the iterates
         if callback is not None:
-            callback(x)
+            callback(r, 'unpreconditioned')
+            callback(M*r, 'preconditioned')
+            callback(M*r, 'pyamg')
+
+        # Apply preconditioner
+        r = np.ravel(M*r)
+        normr = norm(r)
         if keep_r:
             residuals.append(normr)
 

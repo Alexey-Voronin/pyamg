@@ -165,11 +165,18 @@ def gmres_householder(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None,
     # Prep for method
     r = b - np.ravel(A*x)
 
+    # have callback collect unpreconditioned residual
+    if callback is not None:
+        callback(r, 'unpreconditioned')
+        callback(M*r, 'preconditioned')
+        callback(M*r, 'pyamg')
     # Apply preconditioner
     r = np.ravel(M*r)
     normr = norm(r)
     if keep_r:
         residuals.append(normr)
+        callback(M*r, 'preconditioned')
+
     # Check for nan, inf
     # if isnan(r).any() or isinf(r).any():
     #    warn('inf or nan after application of preconditioner')
@@ -313,9 +320,24 @@ def gmres_householder(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None,
 
                 # Allow user access to the iterates
                 if callback is not None:
-                    callback(x)
+                    update = np.zeros(x.shape, dtype=xtype)
+                    y      = sp.linalg.solve(H[0:(inner+1), 0:(inner+1)], g[0:(inner+1)])
+                    amg_core.householder_hornerscheme(update, np.ravel(W), np.ravel(y),
+                                                      dimen, inner, -1, -1)
+
+                    rtmp = b-A*(x+update)
+                    callback(rtmp, 'unpreconditioned')
+                    callback(M*rtmp, 'preconditioned')
+                    callback(normr, 'pyamg')
                 if keep_r:
-                    residuals.append(normr)
+                    update = np.zeros(x.shape, dtype=xtype)
+                    y      = sp.linalg.solve(H[0:(inner+1), 0:(inner+1)], g[0:(inner+1)])
+                    amg_core.householder_hornerscheme(update, np.ravel(W), np.ravel(y),
+                                                      dimen, inner, -1, -1)
+
+                    presid = M*(b-A*(x+update))
+                    normr_tmp = norm(presid)
+                    residuals.append(normr_tmp)
 
         # end inner loop, back to outer loop
 
@@ -350,7 +372,10 @@ def gmres_householder(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None,
 
         # Allow user access to the iterates
         if callback is not None:
-            callback(x)
+            rtmp = b-A*x
+            callback(rtmp, 'unpreconditioned')
+            callback(M*rtmp, 'preconditioned')
+            callback(r, 'pyamg')
         if keep_r:
             residuals.append(normr)
 
