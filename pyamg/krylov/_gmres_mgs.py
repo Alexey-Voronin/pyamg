@@ -322,7 +322,9 @@ def gmres_mgs(A, b, x0=None, tol=1e-5, restrt=None, maxiter=None, xtype=None,
 
                 # Allow user access to the iterates
                 if callback is not None:
-                    callback(x)
+                    y      = sp.linalg.solve(H[0:inner+1, 0:inner+1].T, g[0:inner+1])
+                    update = np.ravel(np.mat(V[:inner+1, :]).T*y.reshape(-1, 1))
+                    callback(x+update)
                 if keep_r:
                     residuals.append(normr)
 
