@@ -27,7 +27,7 @@ __all__ = ['smoothed_aggregation_solver']
 
 
 def smoothed_aggregation_solver(A, Ps = None, Rs=None, timing = None, countOp=None,
-                                B=None, BH=None,
+                                B=None, BH=None, Mass=None,
                                 symmetry='hermitian', strength='symmetric',
                                 aggregate='standard',
                                 smooth=('jacobi', {'omega': 4.0/3.0}),
@@ -281,7 +281,8 @@ def smoothed_aggregation_solver(A, Ps = None, Rs=None, timing = None, countOp=No
     # Construct multilevel structure
     levels = []
     levels.append(multilevel_solver.level())
-    levels[-1].A = A          # matrix
+    levels[-1].A    = A          # matrix
+    levels[-1].Mass = Mass       # mass matrix
 
     # Append near nullspace candidates
     levels[-1].B = B          # right candidates
@@ -336,36 +337,41 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
     if timing is not None:
         start = time.time()
 
-    A = levels[-1].A
-    B = levels[-1].B
+    A    = levels[-1].A
+    Mass = levels[-1].Mass
+    B    = levels[-1].B
     if A.symmetry == "nonsymmetric":
         AH = A.H.asformat(A.format)
         BH = levels[-1].BH
+
+    Agg_Mat = A
+    if Mass is not None:
+        Agg_Mat = Mass
 
     # Compute the strength-of-connection matrix C, where larger
     # C[i,j] denote stronger couplings between i and j.
     fn, kwargs = unpack_arg(strength[len(levels)-1])
     if fn == 'symmetric':
-        C = symmetric_strength_of_connection(A, **kwargs)
+        C = symmetric_strength_of_connection(Agg_Mat, **kwargs)
     elif fn == 'classical':
-        C = classical_strength_of_connection(A, **kwargs)
+        C = classical_strength_of_connection(Agg_Mat, **kwargs)
     elif fn == 'distance':
-        C = distance_strength_of_connection(A, **kwargs)
+        C = distance_strength_of_connection(Agg_Mat, **kwargs)
     elif (fn == 'ode') or (fn == 'evolution'):
         if 'B' in kwargs:
-            C = evolution_strength_of_connection(A, **kwargs)
+            C = evolution_strength_of_connection(Agg_Mat, **kwargs)
         else:
             C = evolution_strength_of_connection(A, B, **kwargs)
     elif fn == 'energy_based':
-        C = energy_based_strength_of_connection(A, **kwargs)
+        C = energy_based_strength_of_connection(Agg_Mat, **kwargs)
     elif fn == 'predefined':
         C = kwargs['C'].tocsr()
     elif fn == 'algebraic_distance':
-        C = algebraic_distance(A, **kwargs)
+        C = algebraic_distance(Agg_Mat, **kwargs)
     elif fn == 'affinity':
-        C = affinity_distance(A, **kwargs)
+        C = affinity_distance(Agg_Mat, **kwargs)
     elif fn is None:
-        C = A.tocsr()
+        C = Agg_Mat.tocsr()
     else:
         raise ValueError('unrecognized strength of connection method: %s' %
                          str(fn))
@@ -373,7 +379,7 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
     # Avoid coarsening diagonally dominant rows
     flag, kwargs = unpack_arg(diagonal_dominance)
     if flag:
-        C = eliminate_diag_dom_nodes(A, C, **kwargs)
+        C = eliminate_diag_dom_nodes(Agg_Mat, C, **kwargs)
 
     # Compute the aggregation matrix AggOp (i.e., the nodal coarsening of A).
     # AggOp is a boolean matrix, where the sparsity pattern for the k-th column
@@ -463,9 +469,12 @@ def extend_hierarchy(levels, strength, aggregate, smooth, improve_candidates,
 
 
     levels.append(multilevel_solver.level())
-    A = R * A * P              # Galerkin operator
+    A    = R * A * P              # Galerkin operator
+    if Mass is not None:
+        Mass = R * Mass * P
     A.symmetry = symmetry
     levels[-1].A = A
+    levels[-1].Mass = Mass
     levels[-1].B = B           # right near nullspace candidates
 
     if A.symmetry == "nonsymmetric":
